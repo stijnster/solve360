@@ -89,7 +89,9 @@ module Solve360
       
       xml << "<ownership>#{ownership}</ownership>"
       xml << "</request>"
-      
+
+      p xml
+
       xml
     end
     
@@ -132,7 +134,9 @@ module Solve360
         mapped_fields = {}
 
         field_mapping.each do |human, api|
-          mapped_fields[human] = fields[api] if !fields[api].blank?
+          if fields[api].present? && fields[api]['__content__'].present?
+            mapped_fields[human] = fields[api]['__content__']
+          end
         end
         
         mapped_fields
@@ -146,29 +150,33 @@ module Solve360
         new_record.save
         new_record
       end
+
+      def search(search_by, value)
+        find_all(:filtermode => search_by, :filtervalue => value)
+      end
       
       # Find records
       # 
       # @param [Integer, Symbol] id of the record on the CRM or :all
-      def find(id)
+      def find(id, query = nil)
         if id == :all
-          find_all
+          find_all(query)
         else
-          find_one(id)
+          find_one(id, query)
         end
       end
       
       # Find a single record
       # 
       # @param [Integer] id of the record on the CRM
-      def find_one(id)
-        response = request(:get, "/#{resource_name}/#{id}")
+      def find_one(id, query = nil)
+        response = request(:get, "/#{resource_name}/#{id}", query)
         construct_record_from_singular(response)
       end
       
       # Find all records
-      def find_all
-        response = request(:get, "/#{resource_name}/", "<request><layout>1</layout></request>")
+      def find_all(query = nil)
+        response = request(:get, "/#{resource_name}/", "<request><layout>1</layout></request>", query)
         construct_record_from_collection(response)
       end
       
@@ -177,10 +185,11 @@ module Solve360
       # @param [Symbol, String] :get, :post, :put or :delete
       # @param [String] url of the resource 
       # @param [String, nil] optional string to send in request body
-      def request(verb, uri, body = "")
+      def request(verb, uri, body = "", query = nil)
         send(verb, HTTParty.normalize_base_uri(Solve360::Config.config.url) + uri,
             :headers => {"Content-Type" => "application/xml", "Accepts" => "application/json"},
             :body => body,
+            :query => query,
             :basic_auth => {:username => Solve360::Config.config.username, :password => Solve360::Config.config.token})
       end
       
